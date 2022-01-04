@@ -1,0 +1,16 @@
+{
+    "compilerOptions": {
+        "module": "ESNext",
+        "target": "ESNext",
+        "outDir": "compiled",
+        "incremental": true
+    },
+    "include": [
+        "declarations",
+        "plugins",
+        "global"
+    ],
+    "exclude": [
+        "node_modules"
+    ]
+}
