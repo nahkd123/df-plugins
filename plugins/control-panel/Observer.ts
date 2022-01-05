@@ -2,6 +2,15 @@ import { PlanetType } from "../../global/PlanetType";
 import { PluginUI } from "../../global/PluginUI";
 import { ControlEntry } from "./ControlEntry";
 
+interface DragDropData {
+
+    type: "energy" | "silver" | "artifact";
+    from: LocationId;
+    amount?: number;
+    artifact?: ArtifactId;
+
+}
+
 export class Observer extends ControlEntry {
 
     planet: Planet;
@@ -27,6 +36,43 @@ export class Observer extends ControlEntry {
             else foundryBtn.remove();
         });
         let selectBtn: HTMLButtonElement;
+
+        //#region Dragging
+        let draggableEnergy = PluginUI.button("Send All Energy (Drag)");
+        draggableEnergy.addEventListener("dragstart", event => {
+            event.dataTransfer.setData("application/json", JSON.stringify(<DragDropData> {
+                type: "energy", from: this.planet.locationId, amount: this.planet.energy * 0.99
+            }));
+        });
+        
+        let draggableSilver = PluginUI.button("Send All Silver (Drag)");
+        draggableSilver.addEventListener("dragstart", event => {
+            event.dataTransfer.setData("application/json", JSON.stringify(<DragDropData> {
+                type: "silver", from: this.planet.locationId, amount: this.planet.silver
+            }));
+        });
+        
+        draggableEnergy.style.cursor = draggableSilver.style.cursor = "move";
+        draggableEnergy.draggable = draggableSilver.draggable = true;
+        
+        this.parent.addEventListener("dragover", event => {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = "move";
+        });
+        this.parent.addEventListener("drop", event => {
+            event.preventDefault();
+            let data: DragDropData = JSON.parse(event.dataTransfer.getData("application/json"));
+            if (!data.type || (data.type != "energy" && data.type != "silver")) {
+                console.warn("[plugins/control-panel] Invaild JSON data");
+            }
+            if (data.from == this.planet.locationId) return;
+
+            let minEnergy = df.getEnergyNeededForMove(data.from, this.planet.locationId, 5);
+            let energySend = Math.floor(data.type == "energy"? data.amount : minEnergy);
+            let silverSend = Math.floor(data.type == "silver"? data.amount : 0);
+            df.move(data.from, this.planet.locationId, energySend, silverSend, data.artifact);
+        });
+        //#endregion
         
         let updateObserver = () => {
             if (!this.planet) return;
@@ -39,6 +85,9 @@ export class Observer extends ControlEntry {
                 if (!notOwnerMessage.isConnected) body.append(notOwnerMessage);
                 if (foundryBtn.isConnected) foundryBtn.remove();
                 if (withdrawSilverBtn.isConnected) withdrawSilverBtn.remove();
+
+                if (draggableEnergy.isConnected) draggableEnergy.remove();
+                if (draggableSilver.isConnected) draggableSilver.remove();
             } else {
                 if (notOwnerMessage.isConnected) notOwnerMessage.remove();
                 if (this.planet.planetType == PlanetType.FOUNDRY) {
@@ -69,15 +118,23 @@ export class Observer extends ControlEntry {
 
                 teleportBtn.remove();
                 withdrawSilverBtn.remove();
+
+                draggableEnergy.remove();
+                draggableSilver.remove();
             } else {
                 this.headerTitle.textContent = `Observer: ${df.getProcgenUtils().getPlanetNameHash(this.planet.locationId)}`;
                 selectBtn.textContent = "Deselect";
                 body.append(energyDisp.parent, silversDisp.parent);
 
-                actionsBar.appendChild(teleportBtn);
+                actionsBar.append(teleportBtn);
                 if (this.planet.owner == df.account) {
                     if (this.planet.planetType == PlanetType.FOUNDRY && !this.planet.hasTriedFindingArtifact) actionsBar.appendChild(foundryBtn);
                     if (this.planet.planetType == PlanetType.SPACETIME_RIP) actionsBar.appendChild(withdrawSilverBtn);
+
+                    actionsBar.append(
+                        draggableEnergy,
+                        draggableSilver
+                    );
                 }
 
                 updateObserver();
