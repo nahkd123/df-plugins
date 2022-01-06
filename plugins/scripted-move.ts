@@ -124,7 +124,9 @@ export class Plugin {
         );
     }
 
-    destroy() {}
+    destroy() {
+        Scripts.killRunning();
+    }
 
 }
 export default Plugin;

@@ -141,6 +141,11 @@ export namespace Scripts {
     export let lastDraggingBlock: BaseBlock;
     let detachLastBlock = true;
 
+    let rootContexts: ExecutionContext[] = [];
+    export function killRunning() {
+        [...rootContexts].forEach(r => r.kill());
+    }
+
     export class ScriptView {
 
         readonly tabBody: HTMLDivElement;
@@ -234,10 +239,13 @@ export namespace Scripts {
     export class ExecutionContext {
 
         localVariables = new Map<string, string>();
+        #killed = false;
+
+        get killed() { return this.parent? this.parent.killed : this.#killed; }
 
         constructor(
             public readonly parent: ExecutionContext
-        ) {}
+        ) { if (!parent) rootContexts.push(this); }
 
         define(varname: string, value: string) {
             if (this.localVariables.has(varname)) throw new Error("Variable already declared");
@@ -254,6 +262,18 @@ export namespace Scripts {
             if (this.localVariables.has(varname)) this.localVariables.set(varname, value);
             else if (this.parent) this.parent.set(varname, value);
             else throw new Error(`Variable ${varname} is not declared`);
+        }
+
+        /**
+         * Kill context. Only works with parent contexts
+         */
+        kill() {
+            if (this.parent) return;
+
+            const idx = rootContexts.indexOf(this);
+            if (idx == -1) return;
+            this.#killed = true;
+            rootContexts.splice(idx, 1);
         }
 
     }
@@ -473,6 +493,7 @@ export namespace Scripts {
             for (let i = 0; i < this.children.length; i++) {
                 let child = this.children[i];
                 try {
+                    if (ctx.killed) throw new Error("Context killed (either by closing plugin or manual kill). No need to worry :)");
                     child.parent.classList.add("running");
                     child.parent.classList.remove("error");
                     prev = await child.execute(prev, ctx);
