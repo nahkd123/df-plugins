@@ -7,14 +7,16 @@ const CSS = `
     color: rgb(187, 187, 187);
     font-size: 16px;
 }
-button {
+button, input {
     font-size: 16px;
     font-family: 'Inconsolata', monospace;
     font-weight: 300;
+}
+button {
+    padding: 6px 8px;
     user-select: none;
     display: inline-flex;
     border-radius: 3px;
-    padding: 6px 8px;
     border: 1px solid rgb(95, 95, 95);
     -webkit-box-pack: center;
     justify-content: center;
@@ -30,11 +32,50 @@ button:hover {
     color: rgb(21, 21, 21);
     background-color: rgb(187, 187, 187);
 }
-button:active {
+input {
+    outline: none;
+    color: black;
+    border: none;
+    padding: 7px 10px;
+}
+button:active,
+button.selected {
+    filter: brightness(80%);
+    color: rgb(21, 21, 21);
     background-color: rgb(255, 255, 255);
 }
 
 .text-red { color: #ff6472; }
+.text-center { text-align: center; }
+
+div.simple-tabbed-container {
+}
+div.simple-tabbed-container > div.header {
+    overflow-x: scroll;
+    border-bottom: 1px solid rgb(95, 95, 95);
+}
+div.simple-tabbed-container > div.header::-webkit-scrollbar {
+    display: none;
+}
+div.simple-tabbed-container > div.header > button {
+    margin-right: 2px;
+    border-radius: 4px 4px 0 0;
+    border-bottom: none;
+    height: 30px;
+    vertical-align: top;
+}
+div.simple-tabbed-container > div.tab {
+    display: none;
+    position: relative;
+    border: 1px solid rgb(95, 95, 95);
+    border-top: none;
+    min-height: 5px;
+    overflow: auto;
+    padding: 8px;
+}
+div.simple-tabbed-container > div.tab.visible {
+    display: block;
+}
 `;
 
 export namespace PluginUI {
@@ -113,6 +154,61 @@ export namespace PluginUI {
             this.cappedDisplay.textContent = `${Pretty.shortNumber(value)}/${Pretty.shortNumber(cap)} `;
             this.percentage.textContent = `(${((value / cap) * 100).toFixed(2)}%)`;
             this.percentage.style.color = percentageColor(value / cap);
+        }
+
+    }
+
+    export class SimpleTabbedContainer {
+
+        parent: HTMLDivElement;
+        header: HTMLDivElement;
+        openedTab: HTMLDivElement;
+        tabs: HTMLDivElement[] = [];
+        tabsButton = new Map<HTMLDivElement, HTMLButtonElement>();
+
+        constructor() {
+            this.parent = <HTMLDivElement> quickNewElement("div", undefined, "simple-tabbed-container");
+            this.header = <HTMLDivElement> quickNewElement("div", undefined, "header");
+            this.parent.append(
+                this.header
+            );
+        }
+
+        addHeaderButton(label: string, cb?: (event: MouseEvent) => any) {
+            let btn = button(label, cb);
+            this.header.append(btn);
+            return btn;
+        }
+
+        addTab(title: string) {
+            let body = <HTMLDivElement> quickNewElement("div", undefined, "tab");
+            let btn = this.addHeaderButton(title, () => this.showTab(body));
+            this.tabs.push(body);
+            this.tabsButton.set(body, btn);
+            this.parent.append(body);
+            return body;
+        }
+
+        showTab(tab: HTMLDivElement) {
+            let btn = this.tabsButton.get(tab);
+            if (!btn) return;
+            
+            this.tabs.forEach(tab => {
+                tab.classList.remove("visible");
+                this.tabsButton.get(tab).classList.remove("selected");
+            });
+            tab.classList.add("visible");
+            btn.classList.add("selected");
+            this.openedTab = tab;
+        }
+
+        closeTab(tab: HTMLDivElement) {
+            let btn = this.tabsButton.get(tab);
+            if (!btn) return;
+            tab.remove();
+            btn.remove();
+            this.tabsButton.delete(tab);
+            if (tab == this.openedTab) this.openedTab = undefined;
         }
 
     }

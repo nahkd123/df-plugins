@@ -104,6 +104,8 @@ export class Observer extends ControlEntry {
                 }
 
                 if (this.planet.planetType == PlanetType.SPACETIME_RIP && !withdrawSilverBtn.isConnected) actionsBar.appendChild(withdrawSilverBtn);
+                if (!draggableEnergy.isConnected) actionsBar.append(draggableEnergy);
+                if (!draggableSilver.isConnected) actionsBar.append(draggableSilver);
             }
         };
 

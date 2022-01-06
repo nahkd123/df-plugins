@@ -246,11 +246,16 @@ declare namespace df {
     ): number;
 
     export function getProcgenUtils(): ProcgenUtils;
+    export const ethConnection: EthConnection;
 
 }
 
 declare interface ProcgenUtils {
     getPlanetNameHash(hash: string): string;
+}
+
+declare interface EthConnection {
+    gasPrices: { slow: number, average: number, fast: number };
 }
 
 declare type Planet = {
