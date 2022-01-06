@@ -61,7 +61,11 @@ export namespace Defaults {
         getValue(ctx: Scripts.ExecutionContext) {
             let from = this.slots["from"].getPlanetId(ctx);
             let to = this.slots["to"].getPlanetId(ctx);
-            return df.getAllVoyages().filter(v => v.fromPlanet == from && v.toPlanet == to).length > 0;
+            return df.getAllVoyages().filter(v =>
+                v.fromPlanet == from &&
+                v.toPlanet == to &&
+                v.arrivalTime > (Date.now() / 1000)
+            ).length > 0;
         }
         constructor() { super([
             "Has Voyage",
