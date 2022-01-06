@@ -16,6 +16,19 @@ export { default } from "http://localhost:2222/control-panel.js?dev";
 
 > Tip: Hold Shift while scrolling with scroll wheel to scroll horizontally
 
+### Scripted Move
+Scratch for Dark Forest. For real automation, you should make a plugin.
+
+![Scripted Move](./images/scripted-move.png)
+
+```js
+export { default } from "http://localhost:2222/scripted-move.js?dev";
+```
+
+The ``# Library`` tab contains all available blocks for you to use. Simply drag and drop it to ``+ Drop Statement Block Here`` or text box inside statement block. If there are too many blocks, you can use the search filter. While dragging, you can put your pointer on the tab name to switch to it:
+
+![Scripted Move](./images/scripted-move.gif)
+
 ### Other plugins
 _More comming soon..._
 
