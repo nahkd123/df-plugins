@@ -1,4 +1,3 @@
-import { PlanetType } from "../../global/PlanetType";
 import { Scripts } from "./Scripts";
 
 export namespace Defaults {
@@ -98,6 +97,10 @@ export namespace Defaults {
         getValue(ctx: Scripts.ExecutionContext) { return df.getPlanetWithId(this.slots["id"].getPlanetId(ctx)).speed; }
         constructor() { super(["Speed", new Scripts.ExpressionSlot("id", "Planet ID")]); }
     }
+    export class Junks extends Scripts.Expression {
+        getValue(ctx: Scripts.ExecutionContext) { return df.getPlanetWithId(this.slots["id"].getPlanetId(ctx)).spaceJunk; }
+        constructor() { super(["Junks", new Scripts.ExpressionSlot("id", "Planet ID")]); }
+    }
     export class OwnerOf extends Scripts.Expression {
         getValue(ctx: Scripts.ExecutionContext) { return df.getPlanetWithId(this.slots["id"].getPlanetId(ctx)).owner; }
         constructor() { super(["Owner of", new Scripts.ExpressionSlot("id", "Planet ID")]); }
@@ -109,6 +112,32 @@ export namespace Defaults {
     export class FoundryArtifactFound extends Scripts.Expression {
         getValue(ctx: Scripts.ExecutionContext) { return (df.getPlanetWithId(this.slots["id"].getPlanetId(ctx)).hasTriedFindingArtifact || false) + ""; }
         constructor() { super(["Artifact Found", new Scripts.ExpressionSlot("id", "Planet ID")]); }
+    }
+    export class IsInvaded extends Scripts.Expression {
+        getValue(ctx: Scripts.ExecutionContext) { return df.getPlanetWithId(this.slots["id"].getPlanetId(ctx)).invader? true : false; }
+        constructor() { super(["Is Invaded", new Scripts.ExpressionSlot("id", "Planet ID")]); }
+    }
+    export class Invader extends Scripts.Expression {
+        getValue(ctx: Scripts.ExecutionContext) { return df.getPlanetWithId(this.slots["id"].getPlanetId(ctx)).invader || "0x0"; }
+        constructor() { super(["Get Invader", new Scripts.ExpressionSlot("id", "Planet ID")]); }
+    }
+    export class InvadeBlockNumber extends Scripts.Expression {
+        getValue(ctx: Scripts.ExecutionContext) { return df.getPlanetWithId(this.slots["id"].getPlanetId(ctx)).invadeStartBlock || -1; }
+        constructor() { super(["Invade Block Number", new Scripts.ExpressionSlot("id", "Planet ID")]); }
+    }
+    export class IsCaptured extends Scripts.Expression {
+        getValue(ctx: Scripts.ExecutionContext) { return df.getPlanetWithId(this.slots["id"].getPlanetId(ctx)).capturer? true : false; }
+        constructor() { super(["Is Captured", new Scripts.ExpressionSlot("id", "Planet ID")]); }
+    }
+    export class CanCapture extends Scripts.Expression {
+        getValue(ctx: Scripts.ExecutionContext) {
+            const planet = df.getPlanetWithId(this.slots["id"].getPlanetId(ctx));
+            if (planet.capturer) return false;
+            const invadeBlock = planet.invadeStartBlock || -1;
+            if (invadeBlock == -1) return false;
+            return df.ethConnection.blockNumber - invadeBlock > 2048;
+        }
+        constructor() { super(["Can Capture", new Scripts.ExpressionSlot("id", "Planet ID")]); }
     }
 
     export class Add extends Scripts.Expression {
@@ -239,6 +268,10 @@ export namespace Defaults {
         getValue() { return df.ethConnection.gasPrices.fast + ""; }
         constructor() { super([ "Gas Price Fast" ]); }
     }
+    export class ETHCurrentBlock extends Scripts.Expression {
+        getValue() { return df.ethConnection.blockNumber + ""; }
+        constructor() { super([ "Current Block" ]); }
+    }
 
     // Statements
     export class Move extends Scripts.Statement {
@@ -252,7 +285,8 @@ export namespace Defaults {
                 new Scripts.ExpressionSlot("planetTo"),
                 new Scripts.ExpressionSlot("energy", "Energy"),
                 new Scripts.ExpressionSlot("silver", "Silver"),
-                new Scripts.ExpressionSlot("artifact", "Artifact ID")
+                new Scripts.ExpressionSlot("artifact", "Artifact ID?"),
+                new Scripts.ExpressionSlot("abandon", "Abandon? = false")
             ]);
         }
 
@@ -260,6 +294,7 @@ export namespace Defaults {
             let from = this.slots["planetFrom"].getPlanetId(ctx);
             let to = this.slots["planetTo"].getPlanetId(ctx);
             let artifact = this.slots["artifact"].getString(ctx) || undefined;
+            let abandon = this.slots["abandon"].getBoolean(ctx) || false;
 
             let energy = Math.floor(parseFloat(this.slots["energy"].getString(ctx) || "0"));
             let silver = Math.floor(parseFloat(this.slots["silver"].getString(ctx) || "0"));
@@ -271,7 +306,9 @@ export namespace Defaults {
             if (planetFrom.energy < energy) throw new Error(`energy: Not enough energy (${planetFrom.energy}/${energy})`);
             if (planetFrom.silver < silver) throw new Error(`silver: Not enough silver (${planetFrom.silver}/${silver})`);
             if (artifact && !planetFrom.heldArtifactIds.includes(artifact)) throw new Error(`artifactId: Planet ${from} doesn't have artifact x${artifact}`);
-            df.move(from, to, energy, silver, artifact);
+            
+            const tx = await df.move(from, to, energy, silver, artifact, abandon);
+            await tx.confirmedPromise;
         }
 
     }
@@ -292,7 +329,9 @@ export namespace Defaults {
             let planet = df.getPlanetWithId(planetId);
             let silver = Math.floor(parseFloat(this.slots["silver"].getString(ctx) || "0"));
             if (planet.silver < silver) throw new Error(`silver: Not enough silver (${planet.silver}/${silver})`);
-            df.withdrawSilver(planetId, silver);
+            
+            const tx = await df.withdrawSilver(planetId, silver);
+            await tx.confirmedPromise;
         }
 
     }
@@ -313,7 +352,9 @@ export namespace Defaults {
             let artifactId = this.slots["artifactId"].getString(ctx) || "0";
             let planet = df.getPlanetWithId(planetId);
             if (!planet.heldArtifactIds.includes(artifactId)) throw new Error(`artifactId: Planet ${planetId} doesn't have artifact x${artifactId}`);
-            df.withdrawArtifact(planetId, artifactId);
+            
+            const tx = await df.withdrawArtifact(planetId, artifactId);
+            await tx.confirmedPromise;
         }
         
     }
@@ -332,7 +373,9 @@ export namespace Defaults {
         async execute(prev: any, ctx: Scripts.ExecutionContext): Promise<any> {
             let planetId = this.slots["planetId"].getPlanetId(ctx);
             let artifactId = this.slots["artifactId"].getString(ctx) || "0";
-            df.depositArtifact(planetId, artifactId);
+            
+            const tx = await df.depositArtifact(planetId, artifactId);
+            await tx.confirmedPromise;
         }
         
     }
@@ -350,10 +393,12 @@ export namespace Defaults {
         async execute(prev: any, ctx: Scripts.ExecutionContext): Promise<any> {
             let planetId = this.slots["planetId"].getPlanetId(ctx);
             let planet = df.getPlanetWithId(planetId);
-            if (planet.planetType != PlanetType.FOUNDRY) throw new Error(`planetId: Not a foundry (planetType: ${planet.planetType} != ${PlanetType.FOUNDRY})`);
+            if (planet.planetType != PlanetType.RUINS) throw new Error(`planetId: Not a foundry (planetType: ${planet.planetType} != ${PlanetType.RUINS})`);
             if ((planet.energy / planet.energyCap) < 0.951) throw new Error(`Foundry needs 95% of energy to prospect`);
             if (planet.prospectedBlockNumber) throw new Error(`Foundry is already prospected (block no. #${planet.prospectedBlockNumber})`);
-            df.prospectPlanet(planetId);
+            
+            const tx = await df.prospectPlanet(planetId);
+            await tx.confirmedPromise;
         }
 
     }
@@ -371,9 +416,11 @@ export namespace Defaults {
         async execute(prev: any, ctx: Scripts.ExecutionContext): Promise<any> {
             let planetId = this.slots["planetId"].getPlanetId(ctx);
             let planet = df.getPlanetWithId(planetId);
-            if (planet.planetType != PlanetType.FOUNDRY) throw new Error(`planetId: Not a foundry (planetType: ${planet.planetType} != ${PlanetType.FOUNDRY})`);
+            if (planet.planetType != PlanetType.RUINS) throw new Error(`planetId: Not a foundry (planetType: ${planet.planetType} != ${PlanetType.RUINS})`);
             if (planet.hasTriedFindingArtifact) throw new Error(`Artifact already found`);
-            df.findArtifact(planetId);
+            
+            const tx = await df.findArtifact(planetId);
+            await tx.confirmedPromise;
         }
 
     }
@@ -392,7 +439,47 @@ export namespace Defaults {
         async execute(prev: any, ctx: Scripts.ExecutionContext): Promise<any> {
             let planetId = this.slots["planetId"].getPlanetId(ctx);
             let transferTo = this.slots["wallet"].getWallet(ctx);
-            df.transferOwnership(planetId, transferTo);
+            
+            const tx = await df.transferOwnership(planetId, transferTo);
+            await tx.confirmedPromise;
+        }
+
+    }
+
+    export class Invade extends Scripts.Statement {
+
+        nestedBlock: boolean = false;
+        constructor() {
+            super([
+                "Invade",
+                new Scripts.ExpressionSlot("planetId", "Planet ID")
+            ]);
+        }
+
+        async execute(prevResult: any, ctx: Scripts.ExecutionContext): Promise<any> {
+            let planetId = this.slots["planetId"].getPlanetId(ctx);
+
+            const tx = await df.invadePlanet(planetId);
+            await tx.confirmedPromise;
+        }
+
+    }
+
+    export class Capture extends Scripts.Statement {
+
+        nestedBlock: boolean = false;
+        constructor() {
+            super([
+                "Capture",
+                new Scripts.ExpressionSlot("planetId", "Planet ID")
+            ]);
+        }
+
+        async execute(prevResult: any, ctx: Scripts.ExecutionContext): Promise<any> {
+            let planetId = this.slots["planetId"].getPlanetId(ctx);
+
+            const tx = await df.invadePlanet(planetId);
+            await tx.confirmedPromise;
         }
 
     }
@@ -466,6 +553,17 @@ export namespace Defaults {
         execute(prev: any, ctx: Scripts.ExecutionContext): Promise<any> {
             return new Promise<void>(resolve => setTimeout(resolve, this.slots["ms"].getFloat(ctx)));
         }
+
+    }
+
+    export class Parallel extends Scripts.Statement {
+
+        nestedBlock: boolean = true;
+        constructor() {
+            super([ "Run in parallel" ]);
+        }
+
+        async execute(prevResult: any, ctx: Scripts.ExecutionContext): Promise<any> { this.executeChild(ctx); }
 
     }
 
@@ -625,6 +723,8 @@ export namespace Defaults {
         FoundryProspect,
         FoundryFind,
         TransferOwnership,
+        Invade,
+        Capture,
     ]);
 
     export const SelectorsLibrary = new Scripts.BlocksLibrary("nahkd.selectors", "Selectors", [
@@ -638,9 +738,10 @@ export namespace Defaults {
     export const AttributesLibrary = new Scripts.BlocksLibrary("nahkd.attributes", "Attributes", [
         Energy, EnergyCap,
         Silver, SilverCap,
-        Range, Speed,
+        Range, Speed, Junks,
         OwnerOf,
         FoundryProspectedBlock, FoundryArtifactFound,
+        IsInvaded, Invader, InvadeBlockNumber, IsCaptured, CanCapture,
     ]);
 
     export const ArithmeticLibrary = new Scripts.BlocksLibrary("nahkd.arithmetic", "Arithmetic", [
@@ -665,8 +766,9 @@ export namespace Defaults {
     ]);
 
     export const UtilityLibrary = new Scripts.BlocksLibrary("nahkd.utility", "Utility", [
-        Wait, PrintToTerminal, Pause, Break,
+        Wait, Parallel, PrintToTerminal, Pause, Break,
         CurrentAccount, Balance, GasPriceSlow, GasPriceAvg, GasPriceFast,
+        ETHCurrentBlock,
     ]);
 
 }
